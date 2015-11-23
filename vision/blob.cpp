@@ -10,7 +10,11 @@
 using namespace std;
 using namespace cv;
 
-
+const double CAMERA_HEIGHT_FROM_GROUND = 1.2;   // height of camera from ground in meters
+const double CAMERA_HEIGHT_FROM_BEACON = 0.2;   // height of camera from beacon in meters
+const double CAMERA_DIAGONAL_ANGLE = 69.0;      // diagonal angle of view for camera in degrees
+                                                // logitech c525 fov is 69 degrees, Samsung Galaxy S5 is 90 degrees
+                                                
 struct hsvParams
   {
   int hL, sL, vL, hH, sH, vH;
@@ -105,49 +109,36 @@ void removenoise(Mat& image)
   erode(image,image,getStructuringElement(MORPH_ELLIPSE,Size(5,5)));
   }
 
-//get robot and camera angles
-//img -> the current camera image
-//objectRows -> rows from the left that the object is in
-//objectCols -> columns from the top that the object is
+// get angle to turn robot (right or left) and distance from robot to object
+// img -> the current camera image
+// objectRows -> rows from the top that the center of the object resides in (pixels)
+// objectCols -> columns from the left that the center of the object resides in (pixels)
 void tilt_turn_degrees(Mat img, int object_rows, int object_cols)
 {
-    double camera_height = 1.2;     // height of camera from ground in meters
-    int camera_diagonal_angle = 69; // diagonal angle of view for camera in degrees
-                                    // logitech c525 fov is 69 degrees, Samsung Galaxy S5 is 90 degrees
-    
     int rows = img.rows; // height of camera image in pixels
     int cols = img.cols; // width of camera image in pixels
-    //cout << "Rows: " << rows << "\n" << "Cols: " << cols << endl;
-    
-    //logitech c525 fov is 69 degrees, Samsung Galaxy S5 is 90 degrees
-    double camera_diagonal = 69; // the angle of the cameras diagonal in degrees
-    double pixel_diagonal = sqrt(rows * rows + cols * cols); // (pythagorean) diagonal length of image in pixels
-    double degrees_per_pixel = camera_diagonal / pixel_diagonal; // ratio of real world degrees to pixels in the image
+
+    double pixel_diagonal = sqrt(rows * rows + cols * cols);           // (pythagorean) diagonal length of image in pixels
+    double degrees_per_pixel = CAMERA_DIAGONAL_ANGLE / pixel_diagonal; // ratio of real world degrees to pixels in the image
     
     int center_rows = rows / 2; // the center height is half of the total height
     int center_cols = cols / 2; // the center width is half of the total width
-    //cout << "Center Rows: " << center_rows << "\n" << "Center Cols: " << center_cols << endl;
     
     int diff_rows = center_rows - object_rows; // difference between center and object rows
     int diff_cols = center_cols - object_cols; // difference between center and object cols
-    //cout << "Diff Rows: " << diff_rows << "\n" << "Diff Cols: " << diff_cols << endl;
     
-    double turn_robot_x_degrees = diff_cols * degrees_per_pixel; // positive -> turn left, negative -> turn right
+    double turn_robot_x_degrees = diff_cols * degrees_per_pixel;  // positive -> turn left, negative -> turn right
     double tilt_camera_x_degrees = diff_rows * degrees_per_pixel; // positive -> tilt up, negative -> tilt down
-    cout << "Turn robot " << turn_robot_x_degrees << " degrees.\n" << "Tilt camera " << tilt_camera_x_degrees << " degrees." << endl;
     
-    double tilted_degrees = 90 - tilt_camera_x_degrees; // assuming camera is parallel to ground (90 degrees)
-
+    double tilted_degrees = 90 - tilt_camera_x_degrees;         // assuming camera is parallel to ground (90 degrees)
     double tilted_radians = tilted_degrees * 3.1415962 / 180.0; // c++ tan() function uses radians
 
-    double height = camera_height; // height of camera from the ground in meters
-
-    double distance = height * tan(tilted_radians); // triangle formula for finding distance
-
-    cout << "Distance is " << distance << " meters" << endl;
+    double distance = CAMERA_HEIGHT_FROM_GROUND * tan(tilted_radians); // triangle formula for finding distance
+    
+    cout << "Turn robot " << turn_robot_x_degrees << " degrees." << endl;   // a negative number means turn right
+    cout << "Tilt camera " << tilt_camera_x_degrees << " degrees." << endl; // this won't actually be needed
+    cout << "Distance to object is " << distance << " meters" << endl;      // maybe make them move distance/2 and reassess?
 }
-
-
 
 int main()
   {
